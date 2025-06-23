@@ -1,0 +1,41 @@
+name: Update Repo List in README
+
+on:
+  schedule:
+    - cron: '0 0 * * *' # 每天UTC午夜触发
+  workflow_dispatch:    # 支持手动触发
+
+jobs:
+  update-readme:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Fetch repos from GitHub API
+        run: |
+          curl -s "https://api.github.com/users/felixlazy/repos?per_page=100" > repos.json
+
+      - name: Generate repo list markdown
+        run: |
+          echo "## Other Notable Repositories" > repo_list.md
+          jq -r '.[] | "- [\(.name)](https://github.com/felixlazy/\(.name)) - \(.description // "No description")"' repos.json >> repo_list.md
+
+      - name: Update README.md with new repo list
+        run: |
+          sed -i '/<!-- repo-list-start -->/,/<!-- repo-list-end -->/c\
+<!-- repo-list-start -->\
+'"$(cat repo_list.md)"'\
+<!-- repo-list-end -->' README.md
+
+      - name: Commit and push changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add README.md
+          if ! git diff --cached --quiet; then
+            git commit -m "chore: update repo list in README"
+            git push
+          else
+            echo "No changes to commit"
+          fi
